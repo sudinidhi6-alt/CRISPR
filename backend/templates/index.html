@@ -554,8 +554,13 @@ async function sendChat(){
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({message:text})
     });
-    let data = await res.json();
-    out.innerHTML = data.reply ? data.reply.replace(/\n/g, '<br>') : data.error;
+    let data = null;
+    try {
+        data = await res.json();
+    } catch (e) {
+        data = {reply: 'The chatbot service returned an invalid response.'};
+    }
+    out.innerHTML = data && data.reply ? data.reply.replace(/\n/g, '<br>') : (data && data.error ? data.error : 'The chatbot service is unavailable.');
 }
 
 window.onload = checkHealth;

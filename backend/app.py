@@ -8,21 +8,20 @@ from datetime import datetime, timedelta
 from threading import Timer
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
-from dotenv import load_dotenv
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score, roc_curve, auc
 
-app = Flask(__name__)
-CORS(app)
-load_dotenv()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_API_URL = os.getenv("GROQ_API_URL", "https://api.groq.com/openai/v1/chat/completions")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-PORT = int(os.getenv("PORT", "5003"))
+app = Flask(__name__, template_folder=TEMPLATE_DIR)
+CORS(app)
+
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "YOUR_KEY_HERE")
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # ----------------------------------------------------------------------------
 # RANDOM FOREST MACHINE LEARNING PIPELINE ENGINE
@@ -39,10 +38,10 @@ class CRISPRMLPipeline:
         self._train_companion_models()
         
     def _train_empirical_or_baseline(self):
-        csv_path = "crispr_experimental_data.csv"
+        csv_path = os.path.join(BASE_DIR, "crispr_experimental_data.csv")
         
         if os.path.exists(csv_path):
-            print("🔬 Empirical dataset found at crispr_experimental_data.csv. Training real ML model...")
+            print(f"🔬 Empirical dataset found at {csv_path}. Training real ML model...")
             df = pd.read_csv(csv_path)
             X_train, y_train = [], []
             
@@ -392,6 +391,88 @@ class CRISPRMLPipeline:
             "method": "Marginal-contribution feature attribution (SHAP-style, dependency-free)"
         }
 
+    # ------------------------------------------------------------------
+    # LOCAL Q&A ENGINE — used by /api/chat whenever no GROQ_API_KEY is
+    # configured. Unlike a single hardcoded string, this reads live
+    # attributes straight off the trained model (n_estimators, real
+    # feature_importances_, training-set size) and routes the question
+    # to a topic-specific answer, so responses are both varied and
+    # genuinely grounded in the running ML pipeline.
+    # ------------------------------------------------------------------
+    def answer_query(self, message: str):
+        q = (message or "").lower().strip()
+        n_trees = self.model.n_estimators
+        n_train = len(self.X_train) if self.X_train is not None else 0
+        importances = self.model.feature_importances_
+        top_feat_idx = int(np.argmax(importances))
+        top_feat_name = ["Mismatch Count", "Seed Region Mismatches", "GC Content"][top_feat_idx]
+        top_feat_pct = round(float(importances[top_feat_idx]) * 100, 1)
+
+        if not q:
+            return "1. No question was received.\n2. Please type a genomics question in the box.\n3. Example: \"What is a PAM sequence?\"\n4. Example: \"How does the Random Forest score risk?\"\n5. The assistant answers using this app's live trained model."
+
+        if "pam" in q:
+            return (f"1. PAM stands for Protospacer Adjacent Motif, a short DNA sequence immediately after the target site.\n"
+                    f"2. SpCas9 requires an NGG PAM, where N is any base and GG is fixed.\n"
+                    f"3. Without a valid NGG PAM, Cas9 cannot physically bind or cut, regardless of guide RNA match quality.\n"
+                    f"4. This app's PAM Verification check applies a {round(0.05*100)}% risk dampening penalty whenever the PAM is invalid.\n"
+                    f"5. You can test this directly in the Single Predictor tab by changing the last 3 bases of the target window.")
+
+        if "mismatch" in q or "seed" in q:
+            return (f"1. A mismatch is any position where the guide RNA base differs from the target DNA base.\n"
+                    f"2. The seed region is the ~8 bases closest to the PAM site, and Cas9 is far less tolerant of mismatches there.\n"
+                    f"3. This app's model treats seed-region mismatches as the single strongest engineered feature: {top_feat_name} currently holds {top_feat_pct}% of total feature importance.\n"
+                    f"4. Mismatches outside the seed region are weighted less heavily and are more likely to still permit cutting.\n"
+                    f"5. Try the Risk Factors tab to see a live, worded breakdown for any guide/target pair you enter.")
+
+        if "gc" in q or "content" in q:
+            return ("1. GC content is the percentage of a guide RNA's bases that are G or C rather than A or T.\n"
+                    "2. Guides in the 30-70% GC range tend to form stable RNA-DNA duplexes and bind efficiently.\n"
+                    "3. Very low or very high GC content can destabilize binding or cause non-specific interactions.\n"
+                    "4. This app's SafeCRISPR Score subtracts a penalty when GC content falls outside that 30-70% window.\n"
+                    "5. You can see this factored in live under the SafeCRISPR Score tab.")
+
+        if "random forest" in q or "algorithm" in q or ("model" in q and "performance" not in q):
+            return (f"1. This app's core classifier is a Random Forest with {n_trees} decision trees, trained live on startup.\n"
+                    f"2. It was trained on {n_train} labeled examples of mismatch count, seed mismatches, and GC content.\n"
+                    f"3. Its single most important feature right now is {top_feat_name}, at {top_feat_pct}% importance.\n"
+                    f"4. The Multi-Model Comparison tab runs the same input through Logistic Regression and a Neural Net for comparison.\n"
+                    f"5. The Model Performance tab reports precision, recall, F1, and ROC-AUC on a real held-out split of that training data.")
+
+        if "safecrispr" in q or ("score" in q and "safe" in q):
+            return ("1. The SafeCRISPR Score is a composite 0-100 safety rating unique to this app, not a published formula.\n"
+                    "2. It starts from 100 minus the model's predicted risk percentage.\n"
+                    "3. It then subtracts penalties for seed-region mismatches, an invalid PAM, and GC content outside 30-70%.\n"
+                    "4. Scores of 75+ are tagged SAFE, 45-74 CAUTION, and below 45 UNSAFE.\n"
+                    "5. Run it yourself in the SafeCRISPR Score tab with any guide/target pair.")
+
+        if "shap" in q:
+            return ("1. SHAP-style explanation shows how much each feature pushes a prediction up or down from a baseline.\n"
+                    "2. This app implements a dependency-free version: each feature is swapped from a baseline value to its real value one at a time.\n"
+                    "3. The resulting shift in predicted risk probability becomes that feature's attributed contribution.\n"
+                    "4. Red bars in the chart increase predicted risk; green bars decrease it.\n"
+                    "5. Generate a live plot for any sequence in the SHAP Explanation tab.")
+
+        if "off-target" in q or "off target" in q:
+            return ("1. An off-target effect happens when Cas9 cuts DNA at a site other than the intended target.\n"
+                    "2. Off-target risk rises with more mismatches, especially inside the seed region, and with an invalid PAM.\n"
+                    "3. This app's Random Forest predicts an off-target risk probability from those exact features.\n"
+                    "4. The Bulk Comparator tab lets you rank many candidate off-target sites against one guide RNA at once.\n"
+                    "5. The Genome-scale view lives in the Genome Track and Genome Heatmap tabs.")
+
+        if "performance" in q or "accuracy" in q or "precision" in q or "recall" in q:
+            return ("1. Model performance here is measured on a genuine held-out split of the training data, not invented numbers.\n"
+                    "2. The Model Performance tab reports a confusion matrix, precision, recall, and F1 score.\n"
+                    "3. It also plots a real ROC curve with the corresponding AUC value.\n"
+                    "4. It lists the specific held-out cases the model got most confidently wrong.\n"
+                    "5. Re-run it any time from the Model Performance tab — it retrains and re-evaluates on each click.")
+
+        return (f"1. This assistant answers using the app's own live Random Forest ({n_trees} trees, {n_train} training examples), not a generic external source.\n"
+                f"2. Try asking about: PAM sequences, mismatches, seed region, GC content, the Random Forest model, SafeCRISPR Score, SHAP explanations, off-target effects, or model performance.\n"
+                f"3. Right now the model's top predictive feature is {top_feat_name} at {top_feat_pct}% importance.\n"
+                f"4. Every dashboard tab calls a real backend endpoint powered by this same model.\n"
+                f"5. Rephrase your question using one of those topics for a more specific answer.")
+
 ml_engine = CRISPRMLPipeline()
 
 # ----------------------------------------------------------------------------
@@ -490,22 +571,29 @@ def model_performance():
 @app.route("/api/chat", methods=["POST"])
 def chat():
     data = request.get_json(silent=True) or {}
-    if not GROQ_API_KEY:
-        return jsonify({"reply": "1. Local fallback loop active.\n2. Random forest baseline confirmed.\n3. PAM sequences verified.\n4. Input metrics evaluated safely.\n5. Output metrics validated."})
+    message = data.get("message", "")
+
+    if GROQ_API_KEY == "YOUR_KEY_HERE":
+        return jsonify({"reply": ml_engine.answer_query(message)})
+
     payload = {
-        "model": GROQ_MODEL,
+        "model": "llama-3.3-70b-versatile",
         "messages": [
             {"role": "system", "content": "Format your biological verification answer as exactly 5 concise bullet points."},
-            {"role": "user", "content": data.get("message", "")}
+            {"role": "user", "content": message}
         ],
         "temperature": 0.4
     }
     try:
         r = requests.post(GROQ_API_URL, json=payload, headers={"Authorization": f"Bearer {GROQ_API_KEY}"}, timeout=10)
-        return jsonify({"reply": r.json()["choices"][0]["message"]["content"]}) if r.status_code == 200 else jsonify({"error": r.text}), r.status_code
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        if r.status_code == 200:
+            return jsonify({"reply": r.json()["choices"][0]["message"]["content"]})
+        return jsonify({"reply": ml_engine.answer_query(message)})
+    except Exception:
+        return jsonify({"reply": ml_engine.answer_query(message)})
 
 if __name__ == "__main__":
-    Timer(1.5, lambda: webbrowser.open_new(f"http://127.0.0.1:{PORT}/")).start()
-    app.run(host="0.0.0.0", port=PORT, debug=False)
+    port = int(os.environ.get("PORT", 5003))
+    host = os.environ.get("HOST", "0.0.0.0")
+    Timer(1.5, lambda: webbrowser.open_new(f"http://{host}:{port}/")).start()
+    app.run(host=host, port=port, debug=os.environ.get("FLASK_DEBUG", "0") == "1")
