@@ -1,0 +1,8 @@
+Flask==3.1.0
+Flask-Cors==6.0.5
+numpy==2.5.0
+pandas==3.0.4
+requests==2.34.2
+scikit-learn==1.9.0
+python-dotenv==1.0.1
+gunicorn==23.0.0

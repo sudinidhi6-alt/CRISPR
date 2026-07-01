@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CRISPR Guardian — Off-Target Risk Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+
+  :root{
+    --bg:        #090D1A;
+    --bg-soft:   #0E1430;
+    --card:      #131A35;
+    --line:      rgba(255,255,255,0.08);
+    --text:      #EAF0FA;
+    --muted:     #8A99AD;
+    --cyan:      #00F2FE;
+    --green:     #32C766;
+    --amber:     #FFB300;
+    --red:       #FF3366;
+    --violet:    #7C5CFF;
+  }
+
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    overflow-x:hidden;
+  }
+  .mono{ font-family:'JetBrains Mono',monospace; }
+
+  a{ color:inherit; text-decoration:none; }
+
+  /* ---------- shared layout ---------- */
+  .shell{ max-width:1180px; margin:0 auto; padding:0 32px; }
+  section{ position:relative; }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; }
+  }
+
+  /* ---------- nav ---------- */
+  nav{
+    position:fixed; top:0; left:0; right:0; z-index:50;
+    backdrop-filter:blur(10px);
+    background:rgba(9,13,26,0.7);
+    border-bottom:1px solid var(--line);
+  }
+  .nav-inner{
+    max-width:1180px; margin:0 auto; padding:18px 32px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; font-family:'JetBrains Mono',monospace; font-weight:700; letter-spacing:0.5px; }
+  .brand .dot{ width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+  .nav-links{ display:flex; gap:28px; font-size:0.88rem; color:var(--muted); }
+  .nav-links a:hover{ color:var(--cyan); }
+  .nav-cta{
+    background:var(--cyan); color:#000; font-weight:700; font-size:0.85rem;
+    padding:9px 18px; border-radius:6px; font-family:'JetBrains Mono',monospace;
+  }
+  @media (max-width:760px){ .nav-links{ display:none; } }
+
+  /* ---------- hero ---------- */
+  .hero{
+    min-height:100vh;
+    display:flex; flex-direction:column; justify-content:center;
+    padding:140px 0 80px;
+  }
+  .helix-field{
+    position:absolute; inset:0; overflow:hidden; z-index:0;
+    mask-image:linear-gradient(to bottom, transparent, black 18%, black 82%, transparent);
+  }
+  .seq-row{
+    display:flex; gap:14px; white-space:nowrap;
+    font-family:'JetBrains Mono',monospace; font-size:1.05rem; font-weight:700;
+    opacity:0.5;
+  }
+  .seq-row span{ color:var(--muted); transition:color .4s, text-shadow .4s; }
+  .seq-row span.scan-green{ color:var(--green); text-shadow:0 0 10px rgba(50,199,102,0.6); }
+  .seq-row span.scan-red{ color:var(--red); text-shadow:0 0 10px rgba(255,51,102,0.6); }
+  .scroll-track{ display:flex; width:max-content; animation:scrollLeft 38s linear infinite; }
+  .scroll-track.rev{ animation-direction:reverse; }
+
+  @keyframes scrollLeft{
+    from{ transform:translateX(0); }
+    to{ transform:translateX(-50%); }
+  }
+
+  .hero-content{ position:relative; z-index:2; text-align:center; }
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:'JetBrains Mono',monospace; font-size:0.78rem; letter-spacing:1.5px;
+    color:var(--cyan); border:1px solid rgba(0,242,254,0.3); background:rgba(0,242,254,0.06);
+    padding:7px 14px; border-radius:30px; margin-bottom:28px;
+  }
+  .eyebrow .dot{ width:6px; height:6px; border-radius:50%; background:var(--cyan); }
+
+  h1.hero-title{
+    font-family:'JetBrains Mono',monospace;
+    font-size:clamp(2.4rem, 6vw, 4.6rem);
+    line-height:1.05;
+    font-weight:800;
+    margin:0 0 22px 0;
+    letter-spacing:-1px;
+  }
+  h1.hero-title .grad{
+    background:linear-gradient(100deg, var(--cyan) 10%, var(--violet) 90%);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  }
+
+  .hero-sub{
+    max-width:620px; margin:0 auto 40px; color:var(--muted);
+    font-size:1.08rem; line-height:1.65;
+  }
+  .hero-sub b{ color:var(--text); }
+
+  .hero-ctas{ display:flex; gap:16px; justify-content:center; flex-wrap:wrap; margin-bottom:64px; }
+
+  .btn{
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:0.95rem;
+    padding:15px 30px; border-radius:8px; cursor:pointer; border:none;
+    display:inline-flex; align-items:center; gap:10px;
+    transition:transform .2s, box-shadow .2s;
+  }
+  .btn:hover{ transform:translateY(-2px); }
+  .btn-primary{
+    background:linear-gradient(100deg, var(--cyan), #6be9ff);
+    color:#02131a; box-shadow:0 8px 30px rgba(0,242,254,0.25);
+  }
+  .btn-primary:hover{ box-shadow:0 12px 36px rgba(0,242,254,0.4); }
+  .btn-ghost{
+    background:transparent; color:var(--text); border:1px solid var(--line);
+  }
+  .btn-ghost:hover{ border-color:var(--cyan); color:var(--cyan); }
+
+  .hero-stats{
+    display:flex; justify-content:center; gap:48px; flex-wrap:wrap;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .hero-stats div{ text-align:center; }
+  .hero-stats .num{ font-size:1.6rem; font-weight:800; color:var(--text); }
+  .hero-stats .lbl{ font-size:0.72rem; color:var(--muted); letter-spacing:0.5px; margin-top:4px; }
+
+  /* ---------- section header ---------- */
+  .section-head{ text-align:center; max-width:680px; margin:0 auto 56px; }
+  .section-tag{
+    font-family:'JetBrains Mono',monospace; font-size:0.78rem; letter-spacing:2px;
+    color:var(--cyan); margin-bottom:14px; display:block;
+  }
+  .section-head h2{ font-size:clamp(1.7rem, 3.4vw, 2.4rem); margin:0 0 14px 0; font-weight:700; }
+  .section-head p{ color:var(--muted); font-size:1rem; line-height:1.6; }
+
+  /* ---------- features ---------- */
+  .features{ padding:110px 0; border-top:1px solid var(--line); }
+  .feat-grid{
+    display:grid; grid-template-columns:repeat(3, 1fr); gap:22px;
+  }
+  @media (max-width:900px){ .feat-grid{ grid-template-columns:repeat(2,1fr); } }
+  @media (max-width:620px){ .feat-grid{ grid-template-columns:1fr; } }
+
+  .feat-card{
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:28px; position:relative; overflow:hidden;
+    transition:transform .25s, border-color .25s;
+    opacity:0; transform:translateY(24px);
+  }
+  .feat-card.visible{ opacity:1; transform:translateY(0); transition:opacity .6s ease, transform .6s ease, border-color .25s; }
+  .feat-card:hover{ transform:translateY(-5px); border-color:var(--accent, var(--cyan)); }
+  .feat-card::before{
+    content:''; position:absolute; top:0; left:0; right:0; height:2px;
+    background:var(--accent, var(--cyan)); opacity:0; transition:opacity .25s;
+  }
+  .feat-card:hover::before{ opacity:1; }
+
+  .feat-icon{
+    width:46px; height:46px; border-radius:10px;
+    background:color-mix(in srgb, var(--accent, var(--cyan)) 15%, transparent);
+    display:flex; align-items:center; justify-content:center; font-size:1.3rem;
+    margin-bottom:18px; border:1px solid color-mix(in srgb, var(--accent, var(--cyan)) 35%, transparent);
+  }
+  .feat-card h3{ font-size:1.08rem; margin:0 0 8px 0; font-family:'JetBrains Mono',monospace; }
+  .feat-card p{ color:var(--muted); font-size:0.9rem; line-height:1.55; margin:0; }
+  .feat-tag{
+    display:inline-block; margin-top:14px; font-size:0.7rem; font-family:'JetBrains Mono',monospace;
+    color:var(--accent, var(--cyan)); border:1px solid color-mix(in srgb, var(--accent, var(--cyan)) 40%, transparent);
+    padding:3px 9px; border-radius:20px;
+  }
+
+  /* ---------- pipeline ---------- */
+  .pipeline{ padding:110px 0; border-top:1px solid var(--line); background:var(--bg-soft); }
+  .pipe-row{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:0; position:relative;
+  }
+  @media (max-width:900px){ .pipe-row{ grid-template-columns:1fr; gap:18px; } }
+  .pipe-step{
+    padding:0 18px; text-align:left; position:relative;
+  }
+  .pipe-step:not(:last-child)::after{
+    content:''; position:absolute; top:20px; right:-2px; width:24px; height:1px;
+    background:linear-gradient(90deg, var(--line), transparent);
+  }
+  @media (max-width:900px){ .pipe-step:not(:last-child)::after{ display:none; } }
+  .pipe-num{
+    font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--violet);
+    border:1px solid rgba(124,92,255,0.4); width:34px; height:34px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; margin-bottom:16px; font-weight:700;
+  }
+  .pipe-step h4{ font-family:'JetBrains Mono',monospace; font-size:0.98rem; margin:0 0 8px 0; }
+  .pipe-step p{ color:var(--muted); font-size:0.87rem; line-height:1.55; margin:0; }
+
+  .model-note{
+    margin-top:48px; background:rgba(255,179,0,0.06); border:1px solid rgba(255,179,0,0.3);
+    border-radius:10px; padding:18px 22px; font-size:0.88rem; color:var(--muted); line-height:1.6;
+  }
+  .model-note b{ color:var(--amber); }
+
+  /* ---------- demo strip ---------- */
+  .demo-strip{ padding:110px 0; border-top:1px solid var(--line); }
+  .demo-card{
+    background:linear-gradient(145deg, var(--card), #0c1230);
+    border:1px solid var(--line); border-radius:18px;
+    padding:56px 48px; text-align:center; position:relative; overflow:hidden;
+  }
+  .demo-card::before{
+    content:''; position:absolute; width:480px; height:480px; border-radius:50%;
+    background:radial-gradient(circle, rgba(0,242,254,0.12), transparent 70%);
+    top:-220px; right:-180px;
+  }
+  .demo-card h2{ font-size:clamp(1.6rem,3vw,2.2rem); margin:0 0 16px 0; position:relative; z-index:1; }
+  .demo-card p{ color:var(--muted); max-width:520px; margin:0 auto 32px; position:relative; z-index:1; }
+
+  /* ---------- footer ---------- */
+  footer{ border-top:1px solid var(--line); padding:36px 0; }
+  .footer-inner{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; }
+  .footer-inner p{ color:var(--muted); font-size:0.82rem; margin:0; }
+
+  /* fade-in utility */
+  .fade-up{ opacity:0; transform:translateY(20px); transition:opacity .7s ease, transform .7s ease; }
+  .fade-up.visible{ opacity:1; transform:translateY(0); }
+
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="brand"><span class="dot"></span> CRISPR<span style="color:var(--cyan)">_</span>GUARDIAN</div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#pipeline">How it works</a>
+      <a href="#launch">Launch app</a>
+    </div>
+    <a href="/dashboard" class="nav-cta">Try it →</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="helix-field" aria-hidden="true">
+    <div class="scroll-track" id="seqTop"></div>
+    <div style="height:18px"></div>
+    <div class="scroll-track rev" id="seqMid"></div>
+    <div style="height:18px"></div>
+    <div class="scroll-track" id="seqBot"></div>
+  </div>
+
+  <div class="shell hero-content">
+    <span class="eyebrow"><span class="dot"></span> EDUCATIONAL SIMULATION · NOT A CLINICAL TOOL</span>
+    <h1 class="hero-title">Scan a guide RNA.<br>See where it might <span class="grad">miss.</span></h1>
+    <p class="hero-sub">
+      CRISPR Guardian is a teaching dashboard that scores how likely a CRISPR guide RNA
+      is to bind somewhere it shouldn't. Type a sequence, get a live
+      <b>Random Forest</b> prediction, and watch the model show its reasoning
+      base by base.
+    </p>
+    <div class="hero-ctas">
+      <a href="/dashboard" class="btn btn-primary">🚀 Launch the App</a>
+      <a href="#features" class="btn btn-ghost">See all 12 features</a>
+    </div>
+    <div class="hero-stats">
+      <div><div class="num mono">12</div><div class="lbl">LIVE FEATURES</div></div>
+      <div><div class="num mono">3</div><div class="lbl">ENGINEERED FEATURES PER PAIR</div></div>
+      <div><div class="num mono">RF</div><div class="lbl">RANDOM FOREST CORE</div></div>
+      <div><div class="num mono">NGG</div><div class="lbl">SpCas9 PAM CHECK</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <div class="shell">
+    <div class="section-head fade-up">
+      <span class="section-tag">WHAT YOU CAN DO</span>
+      <h2>Every feature, run by the same model</h2>
+      <p>Twelve tools, one shared feature-engineering pipeline underneath. Nothing here is a static mockup — each tab calls a live prediction endpoint.</p>
+    </div>
+
+    <div class="feat-grid">
+
+      <div class="feat-card" style="--accent:var(--cyan)">
+        <div class="feat-icon">🎯</div>
+        <h3>Single Predictor</h3>
+        <p>Paste a 20bp guide RNA and a target window. Get a risk score, a LOW / MEDIUM / HIGH classification, and a base-by-base mismatch trace showing exactly where the guide and target disagree.</p>
+        <span class="feat-tag">/api/predict</span>
+      </div>
+
+      <div class="feat-card" style="--accent:var(--violet)">
+        <div class="feat-icon">🧬</div>
+        <h3>Bulk Comparator</h3>
+        <p>Drop in a list of candidate target sequences and rank them all against one reference guide in a single pass, sorted from safest to riskiest.</p>
+        <span class="feat-tag">/api/compare</span>
+      </div>
+
+      <div class="feat-card" style="--accent:var(--green)">
+        <div class="feat-icon">🌐</div>
+        <h3>Genome Track Viewer</h3>
+        <p>Plot a synthetic off-target risk density curve across chromosome coordinates, so you can see how risk theoretically shifts across a genomic region.</p>
+        <span class="feat-tag">/api/genome-track</span>
+      </div>
+
+      <div class="feat-card" style="--accent:var(--amber)">
+        <div class="feat-icon">🧠</div>
+        <h3>Attention-Style Matrix</h3>
+        <p>A position-weighted heatmap showing how much each base pairing contributes to the model's decision — inspired by attention maps from sequence models.</p>
+        <span class="feat-tag">/api/attention-matrix</span>
+      </div>
+
+      <div class="feat-card" style="--accent:var(--red)">
+        <div class="feat-icon">📈</div>
+        <h3>Historical Analytics</h3>
+        <p>A rolling 15-day chart of average predicted risk across demo runs, for tracking how scoring behaves over a session or a class demo.</p>
+        <span class="feat-tag">/api/historical-analytics</span>
+      </div>
+
+      <div class="feat-card" style="--accent:var(--cyan)">
+        <div class="feat-icon">💬</div>
+        <h3>Genomics Q&A Assistant</h3>
+        <p>Ask a plain-English question about gene editing and get a 5-point explanation back, powered by an LLM (with an offline fallback when no API key is set).</p>
+        <span class="feat-tag">/api/chat</span>
+      </div>
+
+      <div class="feat-card" style="--accent:var(--green)">
+        <div class="feat-icon">🛡️</div>
+        <h3>SafeCRISPR Score</h3>
+        <p>A single composite 0–100 safety rating built from the model's risk probability, PAM validity, seed-region mismatches, and GC balance — one number, easy to compare across guides.</p>
+        <span class="feat-tag">/api/safecrispr-score</span>
+      </div>
+
+      <div class="feat-card" style="--accent:var(--amber)">
+        <div class="feat-icon">📋</div>
+        <h3>Risk Factor Breakdown</h3>
+        <p>Turns the Random Forest's feature importances into plain-English sentences explaining exactly why a guide scored the way it did — mismatch count, seed-region position, PAM validity, and GC content.</p>
+        <span class="feat-tag">/api/risk-factors</span>
+      </div>
+
+      <div class="feat-card" style="--accent:var(--violet)">
+        <div class="feat-icon">💡</div>
+        <h3>Alternative Guide Recommender</h3>
+        <p>Tests single-base corrections against the live model and surfaces whichever variant carries the lowest predicted risk — including cases where "fixing" a mismatch inside the PAM actually backfires.</p>
+        <span class="feat-tag">/api/recommend-alternative</span>
+      </div>
+
+      <div class="feat-card" style="--accent:var(--cyan)">
+        <div class="feat-icon">📊</div>
+        <h3>SHAP-Style Explanation</h3>
+        <p>A dependency-free, marginal-contribution feature attribution plot: each feature is swapped from a dataset baseline to its real value to measure how much it shifts the model's predicted risk.</p>
+        <span class="feat-tag">/api/shap-explain</span>
+      </div>
+
+      <div class="feat-card" style="--accent:var(--violet)">
+        <div class="feat-icon">⚖️</div>
+        <h3>Multi-Model Comparison</h3>
+        <p>Runs the same guide RNA through three classifiers trained on identical features — Random Forest, Logistic Regression, and a small Neural Net — and shows where they agree or disagree.</p>
+        <span class="feat-tag">/api/compare-models</span>
+      </div>
+
+      <div class="feat-card" style="--accent:var(--green)">
+        <div class="feat-icon">🧪</div>
+        <h3>Model Performance &amp; Failure Analysis</h3>
+        <p>Holds out 30% of the model's own training data, fits a fresh classifier on the rest, and reports a confusion matrix, precision/recall/F1, an ROC curve, and the held-out cases it got most confidently wrong.</p>
+        <span class="feat-tag">/api/model-performance</span>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section class="pipeline" id="pipeline">
+  <div class="shell">
+    <div class="section-head fade-up">
+      <span class="section-tag">UNDER THE HOOD</span>
+      <h2>What the model actually does</h2>
+      <p>No black box. Here's the real pipeline, in order, every time you hit "Run."</p>
+    </div>
+
+    <div class="pipe-row fade-up">
+      <div class="pipe-step">
+        <div class="pipe-num">1</div>
+        <h4>Align &amp; encode</h4>
+        <p>Your guide RNA and target sequence are aligned base by base. Each position gets a match/mismatch flag and a position weight that rises toward the cut site.</p>
+      </div>
+      <div class="pipe-step">
+        <div class="pipe-num">2</div>
+        <h4>Extract 3 features</h4>
+        <p>Total mismatch count, mismatches inside the 8bp seed region nearest the PAM, and overall GC content of the guide.</p>
+      </div>
+      <div class="pipe-step">
+        <div class="pipe-num">3</div>
+        <h4>Random Forest scores it</h4>
+        <p>A 100-tree Random Forest classifier — trained on real lab data when a CSV is supplied, otherwise on baseline rules — outputs a risk probability.</p>
+      </div>
+      <div class="pipe-step">
+        <div class="pipe-num">4</div>
+        <h4>PAM sanity check</h4>
+        <p>The model checks the target's final 3 bases for a valid SpCas9 "NGG" PAM motif. No valid PAM sharply cuts the risk score, since cutting can't physically occur.</p>
+      </div>
+    </div>
+
+    <div class="model-note fade-up">
+      <b>Heads up:</b> this is a learning tool, not a lab-validated predictor. Without a real
+      <code>crispr_experimental_data.csv</code> of measured cleavage efficiencies, the Random Forest
+      trains on simple synthetic rules (mismatch count + seed-region logic), not actual biology. Treat
+      every score here as a demonstration of <i>how</i> ML-based off-target prediction works — not as
+      guidance for an actual edit.
+    </div>
+  </div>
+</section>
+
+<section class="demo-strip" id="launch">
+  <div class="shell">
+    <div class="demo-card fade-up">
+      <h2>Run it yourself, right now</h2>
+      <p>Start the Flask backend, then jump straight into the live dashboard — every chart and score on the next page is computed by the model in real time.</p>
+      <a href="/dashboard" class="btn btn-primary" style="position:relative; z-index:1;">🧬 Open CRISPR Guardian</a>
+      <p style="font-size:0.78rem; margin-top:18px; font-family:'JetBrains Mono',monospace; color:var(--muted); position:relative; z-index:1;">
+        Backend must be running locally → <code>python app.py</code>
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="shell footer-inner">
+    <p class="mono">CRISPR_GUARDIAN — educational off-target simulation tool</p>
+    <p>Built with Flask · scikit-learn · Plotly</p>
+  </div>
+</footer>
+
+<script>
+  // ---- generate the scrolling DNA base-pair field (pure decorative animation) ----
+  function buildSeqRow(el, length){
+    const bases = ['A','T','G','C'];
+    let html = '';
+    for(let i=0;i<length;i++){
+      html += `<span>${bases[Math.floor(Math.random()*4)]}</span>`;
+    }
+    // duplicate content so the seamless scroll loop works
+    el.innerHTML = `<div class="seq-row">${html}</div><div class="seq-row">${html}</div>`;
+  }
+  buildSeqRow(document.getElementById('seqTop'), 60);
+  buildSeqRow(document.getElementById('seqMid'), 60);
+  buildSeqRow(document.getElementById('seqBot'), 60);
+
+  // periodically "scan" random bases to flash green/red, simulating a mismatch sweep
+  function randomScanFlash(){
+    document.querySelectorAll('.scroll-track').forEach(track=>{
+      const spans = track.querySelectorAll('span');
+      if(!spans.length) return;
+      const i = Math.floor(Math.random()*spans.length);
+      const el = spans[i];
+      el.classList.add(Math.random() > 0.35 ? 'scan-green' : 'scan-red');
+      setTimeout(()=> el.classList.remove('scan-green','scan-red'), 900);
+    });
+  }
+  setInterval(randomScanFlash, 220);
+
+  // ---- scroll-triggered fade-ins ----
+  const observer = new IntersectionObserver((entries)=>{
+    entries.forEach(entry=>{
+      if(entry.isIntersecting){
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.15 });
+
+  document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+  document.querySelectorAll('.feat-card').forEach((el, i) => {
+    el.style.transitionDelay = (i * 70) + 'ms';
+    observer.observe(el);
+  });
+</script>
+
+</body>
+</html>

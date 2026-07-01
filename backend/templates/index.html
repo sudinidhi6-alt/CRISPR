@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>CRISPR Guardian Model System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.32.0/plotly.min.js"></script>
+<style>
+:root { --bg-dark:#090D1A; --card-bg:#131A35; --cyan:#00F2FE; --green:#32C766; --amber:#FFB300; --red:#FF3366; --text-muted:#8A99AD; }
+* { box-sizing: border-box; }
+body { margin:0; background-color:var(--bg-dark); color:#FFF; font-family:sans-serif; padding:25px; }
+.wrap { max-width:1350px; margin:0 auto; }
+.hero-title { font-size:2.2rem; background:linear-gradient(90deg,#FFF, var(--cyan)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin:0; }
+.banner { background:rgba(50,199,102,0.1); border:1px solid var(--green); padding:10px; border-radius:6px; color:#FFF; font-size:.85rem; margin:15px 0; }
+.kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:15px; margin:20px 0; }
+.metric-card { background:var(--card-bg); border:1px solid rgba(0,242,254,0.15); border-radius:8px; padding:15px; }
+.metric-label { color:var(--text-muted); font-size:.8rem; font-weight:bold; }
+.metric-value { font-size:1.5rem; font-weight:bold; margin-top:5px; }
+.layout { display:grid; grid-template-columns:320px 1fr; gap:25px; }
+.sidebar { background:#11162d; border:1px solid rgba(255,255,255,0.05); padding:20px; border-radius:8px; height:fit-content; text-align:center; }
+input[type=text], textarea, select { width:100%; background:#0E1530; color:#FFF; border:1px solid rgba(255,255,255,0.1); padding:10px; border-radius:6px; margin-bottom:12px; font-family:monospace; }
+.btn-primary { background:var(--cyan); color:#000; border:none; padding:12px; border-radius:6px; font-weight:bold; width:100%; cursor:pointer; font-size:0.95rem; }
+
+.feature-menu { background:rgba(19,26,74,0.4); border:1px solid rgba(255,255,255,0.05); padding:15px; border-radius:8px; display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-bottom:20px; }
+.feat-btn { background:#131A35; border:1px solid rgba(255,255,255,0.1); color:#FFF; padding:12px; text-align:left; border-radius:6px; cursor:pointer; font-size:.85rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
+.feat-btn.active { border-color:var(--cyan); background:rgba(0,242,254,0.15); font-weight:bold; color:var(--cyan); box-shadow:0 0 10px rgba(0,242,254,0.25); }
+
+.tab-panel { display:none; background:var(--card-bg); padding:25px; border-radius:8px; border:1px solid rgba(255,255,255,0.05); min-height:420px; }
+.tab-panel.active { display:block; }
+.mismatch-strip { display:flex; gap:6px; margin:15px 0; overflow-x:auto; padding-bottom:5px; }
+.mismatch-base { width:36px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:4px; font-size:.9rem; font-weight:bold; }
+.mismatch-base.match { background:rgba(50,199,102,0.2); color:var(--green); border:1px solid var(--green); }
+.mismatch-base.mismatch { background:rgba(255,51,102,0.2); color:var(--red); border:1px solid var(--red); }
+.risk-badge { padding:6px 12px; border-radius:4px; font-weight:bold; display:inline-block; margin-top:5px; font-size:0.85rem; }
+.badge-low { background:var(--green); color:#000; }
+.badge-med { background:var(--amber); color:#000; }
+.badge-high { background:var(--red); color:#000; }
+.chat-area { background:#0B0F19; border:1px solid rgba(255,255,255,0.05); height:180px; overflow-y:auto; padding:12px; font-size:.85rem; border-radius:6px; margin-bottom:10px; white-space:pre-wrap; color:#D1D9E6; text-align:left; }
+.rank-card { background:rgba(0,0,0,0.2); padding:12px; margin-bottom:8px; border-radius:6px; display:flex; justify-content:space-between; border:1px solid rgba(255,255,255,0.05); font-size:0.9rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <h1 class="hero-title">CRISPR Guardian Model System</h1>
+    <a href="/" style="color:var(--cyan); font-size:0.8rem; text-decoration:none;">← Back to overview</a>
+    <div class="banner"><b>EDUCATIONAL SIMULATION:</b> Live Random Forest engine. Trains on real lab data if <code>crispr_experimental_data.csv</code> is present, otherwise on synthetic baseline rules — see Pipeline tab for details.</div>
+    <p id="connStatus" style="color:var(--amber); font-size:.85rem; margin-bottom:20px;">Synchronizing Core Engine Vectors...</p>
+
+    <div class="kpi-grid">
+        <div class="metric-card"><div class="metric-label">Model Pipeline Status</div><div class="metric-value" style="color:var(--green)">Active ML Core</div></div>
+        <div class="metric-card"><div class="metric-label">Algorithm Base</div><div class="metric-value">Random Forest</div></div>
+        <div class="metric-card"><div class="metric-label">PAM Verification</div><div class="metric-value" style="color:var(--cyan)">SpCas9 Confirmed</div></div>
+        <div class="metric-card"><div class="metric-label">Feature Engineering</div><div class="metric-value">Active PWM</div></div>
+    </div>
+
+    <div class="layout">
+        <div class="sidebar">
+            <div style="font-size:2rem; margin-bottom:10px;">🧬</div>
+            <h3 style="margin:0 0 5px 0; font-size:1.4rem; letter-spacing:1px;">CONTROL PANEL</h3>
+            <p style="color:var(--text-muted); font-size:0.8rem; margin:0 0 20px 0;">Integrated Operational Sandbox Mode</p>
+            
+            <div style="text-align:left; margin-bottom:15px;">
+                <label style="font-size:0.75rem; font-weight:bold; color:var(--text-muted); display:block; margin-bottom:5px;">DEMO CONTEXT</label>
+                <select id="demoContext">
+                    <option>Demo Context A — Therapeutics</option>
+                    <option>Demo Context B — Diagnostics</option>
+                </select>
+            </div>
+
+            <div class="chat-area" id="chatOut">Ask anything about genetics or gene editing. Your answers will arrive formatted in exactly 5 bullet points.</div>
+            <input type="text" id="chatIn" placeholder="Ask a genomics query..." onkeydown="if(event.key==='Enter') sendChat()">
+            <button class="btn-primary" style="width:100%" onclick="sendChat()">Send</button>
+        </div>
+
+        <div>
+            <div class="feature-menu">
+                <button class="feat-btn active" onclick="switchTab(event, 'predict-tab')">🎯 Single Predictor</button>
+                <button class="feat-btn" onclick="switchTab(event, 'compare-tab')">🧬 Bulk Comparator</button>
+                <button class="feat-btn" onclick="switchTab(event, 'track-tab')">🌐 Genome Track</button>
+                <button class="feat-btn" onclick="switchTab(event, 'matrix-tab')">🧠 Attention-Style Matrix</button>
+                <button class="feat-btn" onclick="switchTab(event, 'heatmap-tab')">🗺️ Genome Heatmap</button>
+                <button class="feat-btn" onclick="switchTab(event, 'analytics-tab')">📈 Demo Analytics</button>
+                <button class="feat-btn" onclick="switchTab(event, 'safescore-tab')">🛡️ SafeCRISPR Score</button>
+                <button class="feat-btn" onclick="switchTab(event, 'riskfactors-tab')">📋 Risk Factors</button>
+                <button class="feat-btn" onclick="switchTab(event, 'recommend-tab')">💡 Recommend Alternative</button>
+                <button class="feat-btn" onclick="switchTab(event, 'shap-tab')">📊 SHAP Explanation</button>
+                <button class="feat-btn" onclick="switchTab(event, 'compare-models-tab')">⚖️ Multi-Model Comparison</button>
+                <button class="feat-btn" onclick="switchTab(event, 'performance-tab')">🧪 Model Performance</button>
+            </div>
+
+            <div id="predict-tab" class="tab-panel active">
+                <h3>Single Predictor Engine</h3>
+                <label>Guide RNA (gRNA) — 20 bp</label>
+                <input type="text" id="p_grna" value="GCCAATCGATCGATCGATCG">
+                <label>Target DNA Strand Window</label>
+                <input type="text" id="p_target" value="GCCAATCGATCGATCGATGG">
+                <button class="btn-primary" onclick="runPredict()">Run Predictive Assessment</button>
+                
+                <div style="margin-top:20px; display:grid; grid-template-columns: 1fr 280px; gap:20px; background:rgba(0,0,0,0.2); padding:20px; border-radius:8px;">
+                    <div>
+                        <div class="metric-label">CLASSIFICATION OUTPUT</div>
+                        <div id="classBadge" class="risk-badge badge-high" style="margin: 8px 0 15px 0;">HIGH RISK</div>
+                        <div id="scoreVal" style="font-size:3.5rem; font-weight:bold; color:#FFF">100.0%</div>
+                        <p style="color:var(--text-muted); font-size:0.85rem; margin:5px 0 0 0;">Live Random Forest Engine Classification</p>
+                    </div>
+                    <div style="text-align:center;">
+                        <div class="metric-label">Risk Probability Gauge</div>
+                        <div id="gaugePlot" style="width:260px; height:150px; margin:0 auto;"></div>
+                    </div>
+                </div>
+                <h4>Base Target Pair Alignment Trace Mismatch Profile</h4>
+                <div id="stripBox" class="mismatch-strip"></div>
+                <p id="reasonBox" style="background:rgba(255,255,255,0.02); padding:12px; border-radius:6px; font-size:.9rem; border-left:3px solid var(--cyan);"></p>
+            </div>
+
+            <div id="compare-tab" class="tab-panel">
+                <h3>Bulk Candidate Sequence Comparator Engine</h3>
+                <label>Reference gRNA Strand</label>
+                <input type="text" id="c_grna" value="GCCAATCGATCGATCGATCG">
+                <label>Target Candidates (One per line)</label>
+                <textarea id="c_candidates" rows="4">GCCAATCGATCGATCGATGG&#10;GCCAATCGATCGATCGATCC&#10;ATTGCTAGCTAGCTAGCTAA</textarea>
+                <button class="btn-primary" onclick="runCompare()">Rank Target Sequences</button>
+                <div id="compareOut" style="margin-top:15px;"></div>
+            </div>
+
+            <div id="track-tab" class="tab-panel">
+                <h3>Genome Track Analytics</h3>
+                <label>Select Target Chromosome Matrix Domain</label>
+                <select id="t_chr" onchange="runTrack()">
+                    <option value="Chr 1">Chromosome 1 Trace Line</option>
+                    <option value="Chr 2">Chromosome 2 Reference Line</option>
+                </select>
+                <div id="trackPlot" style="width:100%; height:320px;"></div>
+            </div>
+
+
+            
+
+            
+            <div id="matrix-tab" class="tab-panel">
+                <h3>Attention-Style Matrix Tensor Weights</h3>
+                <label>Reference Identity Base Input</label>
+                <input type="text" id="m_seq" value="GCCAATCGATCGATCGATCG" onchange="runMatrix()">
+                <div id="matrixPlot" style="width:100%; height:360px;"></div>
+            </div>
+
+            <div id="heatmap-tab" class="tab-panel">
+                <h3>Genome Heatmap Visualization</h3>
+                <p style="color:var(--text-muted)">Same risk-density data as the Genome Track, rendered as a heat strip so dense risk regions pop out visually.</p>
+                <div id="heatmapPlot" style="width:100%; height:220px;"></div>
+            </div>
+
+
+            <div id="analytics-tab" class="tab-panel">
+                <h3>Historical Quality Run Matrix Analytics Summary</h3>
+                <div id="analyticsPlot" style="width:100%; height:340px;"></div>
+            </div>
+
+            <div id="safescore-tab" class="tab-panel">
+                <h3>SafeCRISPR Score</h3>
+                <p style="color:var(--text-muted)">A single composite 0–100 safety rating built from the model's risk probability, PAM validity, seed-region mismatches, and GC balance.</p>
+                <label>Guide RNA (gRNA)</label>
+                <input type="text" id="s_grna" value="GCCAATCGATCGATCGATCG">
+                <label>Target DNA Strand Window</label>
+                <input type="text" id="s_target" value="GCCAATCGATCGATCGATGG">
+                <button class="btn-primary" onclick="runSafeScore()">Calculate SafeCRISPR Score</button>
+
+                <div style="margin-top:20px; display:grid; grid-template-columns: 1fr 280px; gap:20px; background:rgba(0,0,0,0.2); padding:20px; border-radius:8px;">
+                    <div>
+                        <div class="metric-label">SAFETY TIER</div>
+                        <div id="safeTierBadge" class="risk-badge badge-low" style="margin: 8px 0 15px 0;">SAFE</div>
+                        <div id="safeScoreVal" style="font-size:3.5rem; font-weight:bold; color:#FFF">0.0</div>
+                        <p style="color:var(--text-muted); font-size:0.85rem; margin:5px 0 0 0;">SafeCRISPR Score (0 = highest risk, 100 = safest)</p>
+                    </div>
+                    <div style="text-align:center;">
+                        <div class="metric-label">Safety Gauge</div>
+                        <div id="safeGaugePlot" style="width:260px; height:150px; margin:0 auto;"></div>
+                    </div>
+                </div>
+                <div id="safeScoreDetail" style="margin-top:15px; background:rgba(255,255,255,0.02); padding:12px; border-radius:6px; font-size:.85rem; border-left:3px solid var(--cyan);"></div>
+            </div>
+
+            <div id="riskfactors-tab" class="tab-panel">
+                <h3>Highlight Risk Factors</h3>
+                <p style="color:var(--text-muted)">Worded explanation of why this guide RNA carries the risk it does, plus the model's relative feature importances.</p>
+                <label>Guide RNA (gRNA)</label>
+                <input type="text" id="rf_grna" value="GCCAATCGATCGATCGATCG">
+                <label>Target DNA Strand Window</label>
+                <input type="text" id="rf_target" value="GCCAATCGATCGATCGATGG">
+                <button class="btn-primary" onclick="runRiskFactors()">Explain Risk Factors</button>
+
+                <div id="rfFactorBars" style="margin-top:18px;"></div>
+                <h4 style="margin-top:20px;">Explanation</h4>
+                <div id="rfExplanation" style="background:rgba(255,255,255,0.02); padding:12px; border-radius:6px; font-size:.9rem; border-left:3px solid var(--cyan);"></div>
+            </div>
+
+            <div id="recommend-tab" class="tab-panel">
+                <h3>Recommend Alternative Guide RNA</h3>
+                <p style="color:var(--text-muted)">Tests single-base corrections (and a fully-corrected variant) against the live model, then surfaces whichever option carries the lowest predicted risk.</p>
+                <label>Guide RNA (gRNA)</label>
+                <input type="text" id="rec_grna" value="GCCAATCGATCGATCGATCG">
+                <label>Target DNA Strand Window</label>
+                <input type="text" id="rec_target" value="GCCAATCGATCGATCGATGG">
+                <button class="btn-primary" onclick="runRecommend()">Find Safer Alternative</button>
+
+                <div id="recOut" style="margin-top:18px;"></div>
+            </div>
+
+            <div id="shap-tab" class="tab-panel">
+                <h3>SHAP-Style Explanation Plot</h3>
+                <p style="color:var(--text-muted)">Dependency-free, marginal-contribution feature attribution: each feature is swapped from a dataset baseline to its real value to measure how much it shifts the model's predicted risk probability.</p>
+                <label>Guide RNA (gRNA)</label>
+                <input type="text" id="shap_grna" value="GCCAATCGATCGATCGATCG">
+                <label>Target DNA Strand Window</label>
+                <input type="text" id="shap_target" value="GCCAATCGATCGATCGATGG">
+                <button class="btn-primary" onclick="runShapExplain()">Generate SHAP-Style Plot</button>
+
+                <div id="shapPlot" style="width:100%; height:300px; margin-top:15px;"></div>
+                <p id="shapSummary" style="color:var(--text-muted); font-size:.85rem;"></p>
+            </div>
+
+            <div id="compare-models-tab" class="tab-panel">
+                <h3>Multi-Model Comparison Engine</h3>
+                <p style="color:var(--text-muted)">Runs the same gRNA/target pair through three classifiers trained on identical features: the production Random Forest, a Logistic Regression, and a small Neural Net (MLPClassifier).</p>
+                <label>Guide RNA (gRNA)</label>
+                <input type="text" id="cm_grna" value="GCCAATCGATCGATCGATCG">
+                <label>Target DNA Strand Window</label>
+                <input type="text" id="cm_target" value="GCCAATCGATCGATCGATGG">
+                <button class="btn-primary" onclick="runCompareModels()">Run All 3 Models</button>
+
+                <div id="cmAgreement" style="margin-top:15px; font-size:0.9rem; color:var(--text-muted);"></div>
+                <div id="cmOut" style="margin-top:10px; display:grid; grid-template-columns:repeat(3, 1fr); gap:15px;"></div>
+            </div>
+
+            <div id="performance-tab" class="tab-panel">
+                <h3>Model Performance &amp; Failure Analysis</h3>
+                <p style="color:var(--text-muted)">Holds out 30% of the production model's own training data, fits a fresh Random Forest on the rest, and reports confusion matrix, precision / recall / F1, ROC-AUC, and the held-out cases the model got most confidently wrong.</p>
+                <button class="btn-primary" onclick="runPerformance()">Run Held-Out Evaluation</button>
+
+                <div id="perfError" style="color:var(--amber); margin-top:10px;"></div>
+
+                <div style="margin-top:20px; display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+                    <div style="background:rgba(0,0,0,0.2); padding:18px; border-radius:8px;">
+                        <h4 style="margin-top:0;">Confusion Matrix &amp; Scores</h4>
+                        <div id="perfMatrix"></div>
+                        <div id="perfScores" style="margin-top:12px; font-size:0.9rem;"></div>
+                    </div>
+                    <div style="background:rgba(0,0,0,0.2); padding:18px; border-radius:8px;">
+                        <h4 style="margin-top:0;">ROC Curve</h4>
+                        <div id="rocPlot" style="width:100%; height:240px;"></div>
+                    </div>
+                </div>
+
+                <h4 style="margin-top:20px;">Most Confidently Wrong Cases</h4>
+                <div id="perfFailures"></div>
+            </div>
+
+            
+        </div>
+    </div>
+</div>
+
+<script>
+function switchTab(event, id){
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    document.querySelectorAll('.feat-btn').forEach(b=>b.classList.remove('active'));
+    
+    document.getElementById(id).classList.add('active');
+    if (event && event.currentTarget) {
+        event.currentTarget.classList.add('active');
+    }
+    
+    if(id==='matrix-tab') runMatrix();
+    if(id==='track-tab') runTrack();
+    if(id==='analytics-tab') runAnalytics();
+    if(id==='heatmap-tab') runHeatmap();
+}
+
+async function checkHealth(){
+    try {
+        let r = await fetch('/api/health');
+        if(r.ok){
+            document.getElementById('connStatus').innerHTML = "● Live Model Pipeline Connected to Target Port 5003";
+            document.getElementById('connStatus').style.color = "var(--green)";
+            runPredict();
+        }
+    } catch(e) {
+        document.getElementById('connStatus').innerHTML = "● Disconnected: Run python app.py inside your terminal.";
+        document.getElementById('connStatus').style.color = "var(--red)";
+    }
+}
+
+async function runPredict(){
+    let grna = document.getElementById('p_grna').value;
+    let target = document.getElementById('p_target').value;
+    let res = await fetch('/api/predict', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({grna, target})
+    });
+    let data = await res.json();
+    
+    document.getElementById('scoreVal').textContent = data.risk_score + '%';
+    let b = document.getElementById('classBadge');
+    b.textContent = data.classification;
+    b.className = 'risk-badge ' + (data.classification.includes('LOW')?'badge-low':data.classification.includes('MEDIUM')?'badge-med':'badge-high');
+    document.getElementById('reasonBox').textContent = data.reasoning;
+
+    let sBox = document.getElementById('stripBox');
+    sBox.innerHTML = '';
+    data.mismatch_profile.forEach(p=>{
+        let d = document.createElement('div');
+        d.className = 'mismatch-base ' + (p.match?'match':'mismatch');
+        d.innerHTML = `<div>${p.target_base}</div>`;
+        sBox.appendChild(d);
+    });
+
+    Plotly.newPlot('gaugePlot', [{
+        type: "indicator", mode: "gauge+number", value: data.risk_score,
+        gauge: { axis: { range: [0, 100] }, bar: { color: data.color }, bgcolor: "rgba(0,0,0,0.2)" }
+    }], { margin:{t:10,b:10,l:10,r:10}, paper_bgcolor:'transparent', font:{color:'#FFF'} }, {displayModeBar:false});
+}
+
+async function runCompare(){
+    let grna = document.getElementById('c_grna').value;
+    let candidates = document.getElementById('c_candidates').value.split('\n');
+    let res = await fetch('/api/compare', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({grna, candidates})
+    });
+    let data = await res.json();
+    let box = document.getElementById('compareOut');
+    box.innerHTML = '';
+    data.results.forEach(r=>{
+        box.innerHTML += `<div class="rank-card">
+            <span><b>#${r.rank}</b> <code>${r.candidate}</code></span>
+            <span>ML Risk Score: <b>${r.risk}%</b> (PAM: ${r.pam_valid?'Valid':'Invalid'})</span>
+        </div>`;
+    });
+}
+
+async function runMatrix(){
+    let seq = document.getElementById('m_seq').value;
+    let res = await fetch('/api/attention-matrix', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({sequence: seq})
+    });
+    let data = await res.json();
+    let chars = seq.split('');
+    Plotly.newPlot('matrixPlot', [{
+        z: data.matrix, x: chars, y: chars, type: 'heatmap', colorscale: 'Viridis'
+    }], { paper_bgcolor:'transparent', plot_bgcolor:'transparent', font:{color:'#FFF'}, margin:{t:20,b:40,l:40,r:20} }, {displayModeBar:false});
+}
+
+async function runTrack(){
+    let chrom = document.getElementById('t_chr').value;
+    let res = await fetch(`/api/genome-track?chr=${encodeURIComponent(chrom)}`);
+    let data = await res.json();
+    Plotly.newPlot('trackPlot', [{
+        x: data.coordinates_mb, y: data.synthetic_risk_density, type: 'scatter', mode: 'lines+markers',
+        line: {color: '#00F2FE'}, name: 'Density Output'
+    }], { paper_bgcolor:'transparent', plot_bgcolor:'transparent', font:{color:'#FFF'}, margin:{t:20,b:40,l:40,r:20} }, {displayModeBar:false});
+}
+
+async function runAnalytics(){
+    let res = await fetch('/api/historical-analytics');
+    let data = await res.json();
+    Plotly.newPlot('analyticsPlot', [{
+        x: data.dates, y: data.avg_risk, type: 'bar', marker: {color: '#32C766'}
+    }], { paper_bgcolor:'transparent', plot_bgcolor:'transparent', font:{color:'#FFF'}, margin:{t:20,b:40,l:40,r:20} }, {displayModeBar:false});
+}
+
+async function runHeatmap(){
+    let res = await fetch('/api/genome-track?chr=Chr 1');
+    let data = await res.json();
+    Plotly.newPlot('heatmapPlot', [{
+        z: [data.synthetic_risk_density], x: data.coordinates_mb, y: ['Risk'],
+        type: 'heatmap', colorscale: 'YlOrRd', showscale: true
+    }], { paper_bgcolor:'transparent', plot_bgcolor:'transparent', font:{color:'#FFF'}, margin:{t:10,b:40,l:60,r:20} }, {displayModeBar:false});
+}
+
+async function runSafeScore(){
+    let grna = document.getElementById('s_grna').value;
+    let target = document.getElementById('s_target').value;
+    let res = await fetch('/api/safecrispr-score', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({grna, target})
+    });
+    let data = await res.json();
+
+    document.getElementById('safeScoreVal').textContent = data.safecrispr_score.toFixed(1);
+    let b = document.getElementById('safeTierBadge');
+    b.textContent = data.tier;
+    b.className = 'risk-badge ' + (data.tier==='SAFE'?'badge-low':data.tier==='CAUTION'?'badge-med':'badge-high');
+
+    document.getElementById('safeScoreDetail').innerHTML =
+        `Underlying ML risk: <b>${data.underlying_risk_score}%</b> &nbsp;|&nbsp; PAM valid: <b>${data.pam_valid?'Yes':'No'}</b> &nbsp;|&nbsp; Seed mismatches: <b>${data.seed_mismatches}</b> &nbsp;|&nbsp; GC content: <b>${(data.gc_content*100).toFixed(1)}%</b>`;
+
+    Plotly.newPlot('safeGaugePlot', [{
+        type: "indicator", mode: "gauge+number", value: data.safecrispr_score,
+        gauge: { axis: { range: [0, 100] }, bar: { color: data.color }, bgcolor: "rgba(0,0,0,0.2)" }
+    }], { margin:{t:10,b:10,l:10,r:10}, paper_bgcolor:'transparent', font:{color:'#FFF'} }, {displayModeBar:false});
+}
+
+async function runRiskFactors(){
+    let grna = document.getElementById('rf_grna').value;
+    let target = document.getElementById('rf_target').value;
+    let res = await fetch('/api/risk-factors', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({grna, target})
+    });
+    let data = await res.json();
+
+    let bars = document.getElementById('rfFactorBars');
+    bars.innerHTML = '<h4>Relative Feature Importance</h4>';
+    data.factors.forEach(f=>{
+        bars.innerHTML += `<div style="margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:4px;"><span>${f.factor}</span><span>${f.importance}%</span></div>
+            <div style="background:rgba(255,255,255,0.06); border-radius:4px; height:10px;"><div style="width:${f.importance}%; background:var(--cyan); height:10px; border-radius:4px;"></div></div>
+        </div>`;
+    });
+
+    document.getElementById('rfExplanation').innerHTML = data.explanation.map(r=>`<p style="margin:6px 0;">• ${r}</p>`).join('');
+}
+
+async function runRecommend(){
+    let grna = document.getElementById('rec_grna').value;
+    let target = document.getElementById('rec_target').value;
+    let res = await fetch('/api/recommend-alternative', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({grna, target})
+    });
+    let data = await res.json();
+    let box = document.getElementById('recOut');
+
+    if(!data.best_alternative){
+        box.innerHTML = `<div class="rank-card"><span>This guide RNA is already a perfect match — no safer alternative exists.</span></div>`;
+        return;
+    }
+
+    box.innerHTML = `
+        <div class="rank-card"><span><b>Original</b> <code>${data.original_sequence}</code></span><span>Risk: <b>${data.original_risk_score}%</b> (${data.original_classification})</span></div>
+        <div class="rank-card" style="border-color:var(--green);"><span><b>Recommended</b> <code>${data.best_alternative.sequence}</code></span><span>Risk: <b>${data.best_alternative.risk_score}%</b> (${data.best_alternative.classification})</span></div>
+        <p style="color:var(--text-muted); font-size:0.85rem; margin-top:8px;">${data.best_alternative.change} — ${data.improved ? 'this lowers predicted risk versus the original.' : 'no candidate improved on the original guide.'}</p>
+        <h4 style="margin-top:18px;">All Tested Candidates</h4>`;
+    data.all_candidates.forEach(c=>{
+        box.innerHTML += `<div class="rank-card"><span><code>${c.sequence}</code></span><span>Risk: <b>${c.risk_score}%</b></span></div>`;
+    });
+}
+
+async function runShapExplain(){
+    let grna = document.getElementById('shap_grna').value;
+    let target = document.getElementById('shap_target').value;
+    let res = await fetch('/api/shap-explain', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({grna, target})
+    });
+    let data = await res.json();
+
+    let colors = data.shap_values.map(v => v >= 0 ? '#FF3366' : '#32C766');
+    Plotly.newPlot('shapPlot', [{
+        x: data.shap_values, y: data.feature_names, type: 'bar', orientation: 'h',
+        marker: { color: colors }
+    }], {
+        paper_bgcolor:'transparent', plot_bgcolor:'transparent', font:{color:'#FFF'},
+        margin:{t:20,b:40,l:140,r:20}, xaxis:{title:'Contribution to risk probability (pts)', zerolinecolor:'#555'}
+    }, {displayModeBar:false});
+
+    document.getElementById('shapSummary').textContent =
+        `Baseline risk: ${data.base_value}% → Predicted risk: ${data.predicted_value}%. Red bars push risk up, green bars pull it down. (${data.method})`;
+}
+
+async function runCompareModels(){
+    let grna = document.getElementById('cm_grna').value;
+    let target = document.getElementById('cm_target').value;
+    let res = await fetch('/api/compare-models', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({grna, target})
+    });
+    let data = await res.json();
+
+    document.getElementById('cmAgreement').innerHTML =
+        `PAM valid: <b>${data.pam_valid ? 'Yes' : 'No'}</b> &nbsp;|&nbsp; Cross-model agreement: <b>${data.agreement}</b>`;
+
+    let box = document.getElementById('cmOut');
+    box.innerHTML = '';
+    data.results.forEach(r=>{
+        let badgeClass = r.risk_score===null ? 'badge-med' : (r.classification.includes('LOW')?'badge-low':r.classification.includes('MEDIUM')?'badge-med':'badge-high');
+        box.innerHTML += `
+            <div style="background:rgba(0,0,0,0.2); padding:16px; border-radius:8px; border:1px solid rgba(255,255,255,0.05); text-align:center;">
+                <div class="metric-label">${r.model}</div>
+                <div style="font-size:2rem; font-weight:bold; margin:8px 0;">${r.risk_score===null ? '—' : r.risk_score + '%'}</div>
+                <div class="risk-badge ${badgeClass}">${r.classification}</div>
+            </div>`;
+    });
+}
+
+async function runPerformance(){
+    let res = await fetch('/api/model-performance');
+    let data = await res.json();
+
+    if(data.error){
+        document.getElementById('perfError').textContent = data.error;
+        document.getElementById('perfMatrix').innerHTML = '';
+        document.getElementById('perfScores').innerHTML = '';
+        document.getElementById('perfFailures').innerHTML = '';
+        Plotly.purge('rocPlot');
+        return;
+    }
+    document.getElementById('perfError').textContent = '';
+
+    let cm = data.confusion_matrix;
+    document.getElementById('perfMatrix').innerHTML = `
+        <table style="width:100%; border-collapse:collapse; text-align:center; font-size:0.85rem;">
+            <tr><td></td><td style="color:var(--text-muted)">Pred SAFE</td><td style="color:var(--text-muted)">Pred RISK</td></tr>
+            <tr><td style="color:var(--text-muted)">True SAFE</td><td style="background:rgba(50,199,102,0.15); padding:10px; border-radius:4px;">${cm[0][0]}</td><td style="background:rgba(255,51,102,0.15); padding:10px; border-radius:4px;">${cm[0][1]}</td></tr>
+            <tr><td style="color:var(--text-muted)">True RISK</td><td style="background:rgba(255,51,102,0.15); padding:10px; border-radius:4px;">${cm[1][0]}</td><td style="background:rgba(50,199,102,0.15); padding:10px; border-radius:4px;">${cm[1][1]}</td></tr>
+        </table>`;
+
+    document.getElementById('perfScores').innerHTML =
+        `Precision: <b>${data.precision}</b> &nbsp;|&nbsp; Recall: <b>${data.recall}</b> &nbsp;|&nbsp; F1: <b>${data.f1}</b> &nbsp;|&nbsp; ROC-AUC: <b>${data.roc_auc}</b><br>
+         <span style="color:var(--text-muted)">Held-out test set size: ${data.test_set_size}</span>`;
+
+    Plotly.newPlot('rocPlot', [{
+        x: data.roc_curve.fpr, y: data.roc_curve.tpr, type: 'scatter', mode: 'lines',
+        line: {color: '#00F2FE'}, name: `AUC = ${data.roc_auc}`
+    }, {
+        x: [0,1], y: [0,1], type:'scatter', mode:'lines', line:{color:'#555', dash:'dot'}, showlegend:false
+    }], {
+        paper_bgcolor:'transparent', plot_bgcolor:'transparent', font:{color:'#FFF'},
+        margin:{t:20,b:40,l:40,r:20}, xaxis:{title:'False Positive Rate'}, yaxis:{title:'True Positive Rate'}
+    }, {displayModeBar:false});
+
+    let fbox = document.getElementById('perfFailures');
+    if(data.most_confident_failures.length === 0){
+        fbox.innerHTML = `<p style="color:var(--text-muted); font-size:0.85rem;">No misclassifications on this held-out split.</p>`;
+    } else {
+        fbox.innerHTML = '';
+        data.most_confident_failures.forEach(f=>{
+            fbox.innerHTML += `<div class="rank-card">
+                <span>Features [mismatches, seed_mm, gc]: <code>${JSON.stringify(f.features)}</code></span>
+                <span>True: <b>${f.true_label}</b> → Predicted: <b>${f.predicted_label}</b> (${f.confidence}% confident)</span>
+            </div>`;
+        });
+    }
+}
+
+async function sendChat(){
+    let out = document.getElementById('chatOut');
+    let inp = document.getElementById('chatIn');
+    let text = inp.value.trim();
+    if(!text) return;
+    out.textContent = "Querying live model parameters...";
+    inp.value = '';
+    let res = await fetch('/api/chat', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({message:text})
+    });
+    let data = await res.json();
+    out.innerHTML = data.reply ? data.reply.replace(/\n/g, '<br>') : data.error;
+}
+
+window.onload = checkHealth;
+</script>
+</body>
+</html>
