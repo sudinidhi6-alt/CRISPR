@@ -2,6 +2,7 @@ services:
   - type: web
     name: crispr-guardian
     env: python
+    pythonVersion: 3.12.3
     region: oregon
     plan: free
     rootDir: backend
