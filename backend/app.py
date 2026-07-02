@@ -275,8 +275,27 @@ class CRISPRMLPipeline:
         pred = self.predict(grna, target)
         features, _ = self.extract_features(grna, target)
         mismatches, seed_mismatches, gc = features
-        importances = self.model.feature_importances_
         factor_names = ["Total Mismatch Count", "Seed Region Mismatches", "GC Content Balance"]
+        factors = []
+        # Use input-sensitive weighting so the bars change when the guide/target pair changes,
+        # instead of staying at static model-wide feature importances.
+        mismatch_pressure = max(0.0, min(100.0, mismatches * 24.0 + (8.0 if mismatches > 0 else 0.0)))
+        seed_pressure = max(0.0, min(100.0, seed_mismatches * 34.0 + (10.0 if seed_mismatches > 0 else 0.0)))
+        gc_pressure = max(0.0, min(100.0, abs(gc - 0.5) * 160.0))
+
+        # Scale by current risk score so percentages are tied to this specific sequence pair.
+        risk_scale = max(0.6, min(1.3, pred["risk_score"] / 100.0 + 0.2))
+        raw_contributions = [
+            mismatch_pressure * risk_scale,
+            seed_pressure * risk_scale,
+            gc_pressure * risk_scale,
+        ]
+
+        total = sum(raw_contributions)
+        if total > 1e-9:
+            importances = [c / total for c in raw_contributions]
+        else:
+            importances = [1.0 / len(features)] * len(features)
 
         factors = []
         for name, imp, val in zip(factor_names, importances, features):
